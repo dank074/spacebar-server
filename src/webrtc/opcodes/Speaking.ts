@@ -26,12 +26,14 @@ export async function onSpeaking(this: WebSocket, data: Payload) {
 
 	getClients(this.client.channel_id).forEach((client) => {
 		if (client.websocket.user_id === this.user_id) return;
+
+		//const consumer = client.consumers.find((x) => x.kind === "audio" && x.appData.user_id === this.user_id)
 		Send(client.websocket, {
 			op: VoiceOPCodes.SPEAKING,
 			d: {
 				user_id: this.user_id,
 				speaking: data.d.speaking,
-				ssrc: data.d.ssrc,
+				ssrc: data.d.ssrc, //consumer?.rtpParameters?.encodings?.find(y => y !== undefined)?.ssrc || 0,
 			},
 		});
 	});

@@ -128,6 +128,7 @@ export async function onIdentify(this: WebSocket, data: IdentifyPayload) {
 		producers: {},
 		consumers: [],
 		headerExtensions: [],
+		supportedCodecs: [],
 	};
 
 	const clients = getClients(voiceState.channel_id)!;
@@ -140,7 +141,7 @@ export async function onIdentify(this: WebSocket, data: IdentifyPayload) {
 	const d = {
 		op: VoiceOPCodes.READY,
 		d: {
-			ssrc: ++this.client.in.video_ssrc, // this is just a base, first stream ssrc will be +1 with rtx +2
+			ssrc: this.client.in.video_ssrc, // this is just a base, first stream ssrc will be +1 with rtx +2
 			streams: streams?.map((x) => ({
 				...x,
 				ssrc: ++this.client!.in.video_ssrc, // first stream should be 2

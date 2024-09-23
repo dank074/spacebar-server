@@ -80,6 +80,7 @@ export interface Client {
 	};
 	consumers: MediaSoupTypes.Consumer[];
 	headerExtensions: MediaSoupTypes.RtpHeaderExtensionParameters[];
+	supportedCodecs: MediaSoupTypes.RtpCodecCapability[];
 }
 
 export function getClients(channel_id: string) {
@@ -269,6 +270,7 @@ export const MEDIA_CODECS: MediaSoupTypes.RtpCodecCapability[] = [
 			{ type: "goog-remb" },
 			{ type: "transport-cc" },
 		],
+		preferredPayloadType: 96,
 	},
 	{
 		kind: "video",
@@ -281,6 +283,7 @@ export const MEDIA_CODECS: MediaSoupTypes.RtpCodecCapability[] = [
 			{ type: "goog-remb" },
 			{ type: "transport-cc" },
 		],
+		preferredPayloadType: 98,
 	},
 	{
 		kind: "video",
@@ -290,7 +293,7 @@ export const MEDIA_CODECS: MediaSoupTypes.RtpCodecCapability[] = [
 			"level-asymmetry-allowed": 1,
 			"packetization-mode": 1,
 			"profile-level-id": "42e01f",
-			"x-google-start-bitrate": 2500,
+			"x-google-max-bitrate": 2500,
 		},
 		rtcpFeedback: [
 			{ type: "nack" },
@@ -315,6 +318,7 @@ export const MEDIA_CODECS: MediaSoupTypes.RtpCodecCapability[] = [
 			{ type: "goog-remb" },
 			{ type: "transport-cc" },
 		],
+		preferredPayloadType: 105,
 	},
 ];
 

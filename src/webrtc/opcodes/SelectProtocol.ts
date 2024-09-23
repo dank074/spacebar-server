@@ -22,6 +22,7 @@ import { types as MediaSoupTypes } from "mediasoup";
 import * as sdpTransform from "sdp-transform";
 import * as SemanticSDP from "semantic-sdp";
 import { getRouter, SUPPORTED_EXTENTIONS, VoiceOPCodes } from "../util";
+import { RtpCapabilities } from "mediasoup/node/lib/RtpParameters";
 
 // request:
 // {
@@ -138,7 +139,7 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 	//@ts-ignore
 	offer.getMedias()[0].type = "audio"; // this is bad, but answer.toString() fails otherwise
 	console.log(offer.getMedias());
-	offer.getMedias()[0].setBitrate(64000);
+	//offer.getMedias()[0].setBitrate(64000);
 	const remoteDTLS = offer.getDTLS().plain();
 
 	await this.client.transport!.connect({
@@ -215,6 +216,57 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 		} ${iceCandidate.ip} ${iceCandidate.port} typ ${iceCandidate.type}\n`;
 
 	// const sdpAnswer = answer.toString();
+
+	const supportedCodecs: MediaSoupTypes.RtpCodecCapability[] = [
+		{
+			kind: "audio",
+			mimeType: "audio/opus",
+			clockRate: 48000,
+			channels: 2,
+			rtcpFeedback: [{ type: "nack" }, { type: "transport-cc" }],
+			parameters: {
+				minptime: 10,
+				usedtx: 1,
+				useinbandfec: 1,
+			},
+			preferredPayloadType: data.codecs?.find((val) => val.name == "opus")
+				?.payload_type,
+		},
+		{
+			kind: "video",
+			mimeType: "video/H264",
+			clockRate: 90000,
+			parameters: {
+				"level-asymmetry-allowed": 1,
+				"packetization-mode": 1,
+				"profile-level-id": "42e01f",
+				"x-google-max-bitrate": 2500,
+			},
+			rtcpFeedback: [
+				{ type: "nack" },
+				{ type: "nack", parameter: "pli" },
+				{ type: "ccm", parameter: "fir" },
+				{ type: "goog-remb" },
+				{ type: "transport-cc" },
+			],
+			preferredPayloadType: data.codecs?.find((val) => val.name == "H264")
+				?.payload_type,
+		},
+		{
+			kind: "video",
+			mimeType: "video/rtx",
+			clockRate: 90000,
+			parameters: {
+				apt: data.codecs?.find((val) => val.name == "H264")
+					?.payload_type,
+			},
+			preferredPayloadType:
+				data.codecs?.find((val) => val.name == "H264")
+					?.rtx_payload_type ?? undefined,
+		},
+	];
+
+	this.client.supportedCodecs = supportedCodecs;
 
 	console.debug("onSelectProtocol sdp serialized\n", sdpAnswer);
 	await Send(this, {
