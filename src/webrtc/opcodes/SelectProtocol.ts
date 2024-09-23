@@ -125,21 +125,25 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 	const offer = SemanticSDP.SDPInfo.parse("m=audio\n" + data.sdp);
 	const offer2 = sdpTransform.parse(data.sdp!);
 	this.client.sdpOffer = offer;
-	this.client.headerExtensions =
-		offer2.ext
-			?.filter((x) => SUPPORTED_EXTENTIONS.includes(x.uri))
-			.map((x) => ({
-				uri: x.uri as MediaSoupTypes.RtpHeaderExtensionUri,
-				id: x.value,
-				parameters: x.config,
-				encrypt: false,
-			})) ?? [];
+	const compatibleHeaderExtensions =
+		router.router.rtpCapabilities.headerExtensions?.filter(
+			(x) => offer2.ext?.find((y) => y.uri === x.uri) !== undefined,
+		) || [];
+	const correctedExtensions = compatibleHeaderExtensions?.map((x) => {
+		const match = offer2.ext?.find((y) => y.uri === x.uri);
+
+		return {
+			...x,
+			preferredId: match?.value || x.preferredId,
+		};
+	});
+
+	this.client.headerExtensions = correctedExtensions;
 
 	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 	//@ts-ignore
 	offer.getMedias()[0].type = "audio"; // this is bad, but answer.toString() fails otherwise
-	console.log(offer.getMedias());
-	//offer.getMedias()[0].setBitrate(64000);
+
 	const remoteDTLS = offer.getDTLS().plain();
 
 	await this.client.transport!.connect({
@@ -252,7 +256,7 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 			preferredPayloadType: data.codecs?.find((val) => val.name == "H264")
 				?.payload_type,
 		},
-		{
+		/* {
 			kind: "video",
 			mimeType: "video/rtx",
 			clockRate: 90000,
@@ -263,7 +267,7 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 			preferredPayloadType:
 				data.codecs?.find((val) => val.name == "H264")
 					?.rtx_payload_type ?? undefined,
-		},
+		}, */
 	];
 
 	this.client.supportedCodecs = supportedCodecs;
@@ -279,5 +283,10 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 			media_session_id: this.session_id,
 			sdp: sdpAnswer,
 		},
+	});
+
+	console.log({
+		codecs: this.client.supportedCodecs,
+		headerExtensions: this.client.headerExtensions,
 	});
 }

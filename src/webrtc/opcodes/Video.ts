@@ -165,7 +165,7 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 								{ type: "transport-cc" },
 							],
 						},
-						{
+						/* {
 							payloadType:
 								this.client.supportedCodecs.find(
 									(val) => val.mimeType === "video/rtx",
@@ -178,7 +178,7 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 										(val) => val.mimeType === "video/H264",
 									)?.preferredPayloadType ?? 102,
 							},
-						},
+						}, */
 					],
 					encodings: [
 						{
@@ -190,7 +190,7 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 							rid: stream.rid,
 							codecPayloadType:
 								this.client.supportedCodecs.find(
-									(val) => val.kind === "video",
+									(val) => val.mimeType === "video/H264",
 								)?.preferredPayloadType ?? 102,
 						},
 					],
@@ -225,6 +225,8 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 			videoProducer.on("score", (score) => {
 				console.debug(`video producer score:`, score);
 			});
+
+			this.client.producers.video = videoProducer;
 		}
 	}
 
@@ -235,10 +237,10 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 		if (!client.transport) continue;
 		if (!hasNewProducer) continue;
 
-		let a = client.consumers.find(
+		let audioConsumer = client.consumers.find(
 			(x) => x.kind === "audio" && x.appData.user_id === this.user_id,
 		);
-		if (d.audio_ssrc !== 0 && !a) {
+		if (d.audio_ssrc !== 0 && !audioConsumer) {
 			//close the existing consumer if it exists
 			const consumers = client.consumers.filter(
 				(x) => x.kind === "audio" && x.appData.user_id === this.user_id,
@@ -248,8 +250,7 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 				producerId: audioProducer?.id!,
 				rtpCapabilities: {
 					codecs: client.supportedCodecs,
-					headerExtensions:
-						router.router.rtpCapabilities.headerExtensions,
+					headerExtensions: client.headerExtensions,
 				},
 				paused: false,
 				appData: {
@@ -268,13 +269,13 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 				);
 			});
 			client.consumers.push(consumer);
-			a = consumer;
+			audioConsumer = consumer;
 		}
 
-		let b = client.consumers.find(
+		let videoConsumer = client.consumers.find(
 			(x) => x.kind === "video" && x.appData.user_id === this.user_id,
 		);
-		if (d.video_ssrc !== 0 && stream?.active && !b) {
+		if (d.video_ssrc !== 0 && stream?.active && !videoConsumer) {
 			// close the existing consumer if it exists
 			const a = client.consumers.filter(
 				(x) => x.kind === "video" && x.appData.user_id === this.user_id,
@@ -284,48 +285,51 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 				producerId: videoProducer?.id!,
 				rtpCapabilities: {
 					codecs: client.supportedCodecs,
-					headerExtensions:
-						router.router.rtpCapabilities.headerExtensions,
+					headerExtensions: client.headerExtensions,
 				},
 				paused: false,
 				appData: {
 					user_id: this.user_id,
 				},
+				preferredLayers: {
+					spatialLayer: 1,
+					temporalLayer: 1,
+				},
 			});
 			client.consumers.push(consumer);
 			consumer.on("trace", (buff) => console.log(buff));
-			b = consumer;
+			videoConsumer = consumer;
 		}
 
 		if (
-			d.audio_ssrc !== 0 ||
-			(d.video_ssrc !== 0 && stream?.active && hasNewProducer)
+			(d.audio_ssrc !== 0 || (d.video_ssrc !== 0 && stream?.active)) &&
+			hasNewProducer
 		) {
 			Send(client.websocket, {
 				op: VoiceOPCodes.VIDEO,
 				d: {
 					user_id: this.user_id,
 					audio_ssrc:
-						a?.rtpParameters?.encodings?.find(
+						audioConsumer?.rtpParameters?.encodings?.find(
 							(y) => y !== undefined,
 						)?.ssrc || 0,
 					video_ssrc:
-						b?.rtpParameters?.encodings?.find(
+						videoConsumer?.rtpParameters?.encodings?.find(
 							(y) => y !== undefined,
 						)?.ssrc || 0,
 					rtx_ssrc:
-						b?.rtpParameters?.encodings?.find(
+						videoConsumer?.rtpParameters?.encodings?.find(
 							(y) => y !== undefined,
 						)?.rtx?.ssrc || 0,
 					streams: d.streams?.map((x) => ({
 						...x,
 						//active: true,
 						ssrc:
-							b?.rtpParameters?.encodings?.find(
+							videoConsumer?.rtpParameters?.encodings?.find(
 								(y) => y !== undefined,
 							)?.ssrc || 0,
 						rtx_ssrc:
-							b?.rtpParameters?.encodings?.find(
+							videoConsumer?.rtpParameters?.encodings?.find(
 								(y) => y !== undefined,
 							)?.rtx?.ssrc || 0,
 					})),

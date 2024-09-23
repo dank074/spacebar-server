@@ -79,7 +79,7 @@ export interface Client {
 		video?: MediaSoupTypes.Producer;
 	};
 	consumers: MediaSoupTypes.Consumer[];
-	headerExtensions: MediaSoupTypes.RtpHeaderExtensionParameters[];
+	headerExtensions: MediaSoupTypes.RtpHeaderExtension[];
 	supportedCodecs: MediaSoupTypes.RtpCodecCapability[];
 }
 
