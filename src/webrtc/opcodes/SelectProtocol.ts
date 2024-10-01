@@ -285,6 +285,8 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 		},
 	});
 
+	this.emit("protocol");
+
 	console.log({
 		codecs: this.client.supportedCodecs,
 		headerExtensions: this.client.headerExtensions,
