@@ -118,11 +118,11 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 				paused: false,
 			});
 
-			await audioProducer.enableTraceEvent(["rtp"]);
+			//await audioProducer.enableTraceEvent(["rtp"]);
 
-			audioProducer.on("score", (score) => {
-				console.debug(`audio producer score:`, score);
-			});
+			// audioProducer.on("score", (score) => {
+			// 	console.debug(`audio producer score:`, score);
+			// });
 
 			// audioProducer.on("trace", (trace) => {
 			// 	console.debug(`audio producer trace:`, trace);
@@ -165,7 +165,7 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 								{ type: "transport-cc" },
 							],
 						},
-						/* {
+						{
 							payloadType:
 								this.client.supportedCodecs.find(
 									(val) => val.mimeType === "video/rtx",
@@ -178,49 +178,79 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 										(val) => val.mimeType === "video/H264",
 									)?.preferredPayloadType ?? 102,
 							},
-						}, */
+						},
 					],
 					encodings: [
 						{
 							ssrc: stream.ssrc,
-							rtx: { ssrc: stream.rtx_ssrc! },
+							rtx: { ssrc: stream.rtx_ssrc },
 							scalabilityMode: "L1T1",
-							//scaleResolutionDownBy: 1,
+							scaleResolutionDownBy: 1,
 							maxBitrate: stream.max_bitrate,
 							rid: stream.rid,
 							codecPayloadType:
 								this.client.supportedCodecs.find(
 									(val) => val.mimeType === "video/H264",
 								)?.preferredPayloadType ?? 102,
+							dtx: true,
 						},
 					],
 					headerExtensions: [
 						{
-							id: 2,
+							id:
+								this.client.headerExtensions.find(
+									(header) =>
+										header.uri ===
+										"http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
+								)?.preferredId || 2,
 							uri: "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
 						},
 						{
-							id: 3,
+							id:
+								this.client.headerExtensions.find(
+									(header) =>
+										header.uri ===
+										"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
+								)?.preferredId || 3,
 							uri: "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
 						},
 						{
-							id: 5,
+							id:
+								this.client.headerExtensions.find(
+									(header) =>
+										header.uri ===
+										"http://www.webrtc.org/experiments/rtp-hdrext/playout-delay",
+								)?.preferredId || 5,
 							uri: "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay",
 						},
 						{
-							id: 13,
+							id:
+								this.client.headerExtensions.find(
+									(header) =>
+										header.uri ===
+										"urn:3gpp:video-orientation",
+								)?.preferredId || 13,
 							uri: "urn:3gpp:video-orientation",
 						},
 						{
-							id: 14,
+							id:
+								this.client.headerExtensions.find(
+									(header) =>
+										header.uri ===
+										"urn:ietf:params:rtp-hdrext:toffset",
+								)?.preferredId || 14,
 							uri: "urn:ietf:params:rtp-hdrext:toffset",
 						},
 					],
+					rtcp: {
+						reducedSize: false,
+					},
 				},
 				paused: false,
+				keyFrameRequestDelay: 1000,
 			});
 
-			await videoProducer.enableTraceEvent(["rtp"]);
+			//await videoProducer.enableTraceEvent(["rtp"]);
 
 			videoProducer.on("score", (score) => {
 				console.debug(`video producer score:`, score);
@@ -240,14 +270,14 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 		let audioConsumer = client.consumers.find(
 			(x) => x.kind === "audio" && x.appData.user_id === this.user_id,
 		);
-		if (d.audio_ssrc !== 0 && !audioConsumer) {
+		if (d.audio_ssrc !== 0 && !audioConsumer && audioProducer) {
 			//close the existing consumer if it exists
 			const consumers = client.consumers.filter(
 				(x) => x.kind === "audio" && x.appData.user_id === this.user_id,
 			);
 			await Promise.all(consumers.map((x) => x.close()));
 			const consumer = await client.transport.consume({
-				producerId: audioProducer?.id!,
+				producerId: audioProducer.id,
 				rtpCapabilities: {
 					codecs: client.supportedCodecs,
 					headerExtensions: client.headerExtensions,
@@ -257,32 +287,39 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 					user_id: this.user_id,
 				},
 			});
-			consumer.enableTraceEvent(["rtp"]);
+			//consumer.enableTraceEvent(["rtp"]);
 
 			// consumer.on("trace", (trace) => {
 			// 	console.debug(`audio consumer trace:`, trace);
 			// });
-			consumer.on("score", (score) => {
-				console.debug(
-					`audio consumer(${client.websocket.user_id}/${d.audio_ssrc}) score:`,
-					score,
-				);
-			});
+			// consumer.on("score", (score) => {
+			// 	console.debug(
+			// 		`audio consumer(${client.websocket.user_id}/${d.audio_ssrc}) score:`,
+			// 		score,
+			// 	);
+			// });
 			client.consumers.push(consumer);
+			const dump = await consumer.dump();
+			console.log(dump);
 			audioConsumer = consumer;
 		}
 
 		let videoConsumer = client.consumers.find(
 			(x) => x.kind === "video" && x.appData.user_id === this.user_id,
 		);
-		if (d.video_ssrc !== 0 && stream?.active && !videoConsumer) {
+		if (
+			d.video_ssrc !== 0 &&
+			stream?.active &&
+			!videoConsumer &&
+			videoProducer
+		) {
 			// close the existing consumer if it exists
 			const a = client.consumers.filter(
 				(x) => x.kind === "video" && x.appData.user_id === this.user_id,
 			);
 			await Promise.all(a.map((x) => x.close()));
 			const consumer = await client.transport.consume({
-				producerId: videoProducer?.id!,
+				producerId: videoProducer.id,
 				rtpCapabilities: {
 					codecs: client.supportedCodecs,
 					headerExtensions: client.headerExtensions,
@@ -293,11 +330,21 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 				},
 				preferredLayers: {
 					spatialLayer: 1,
-					temporalLayer: 1,
+					temporalLayer: 0,
 				},
+				//mid: "2"
 			});
 			client.consumers.push(consumer);
-			consumer.on("trace", (buff) => console.log(buff));
+			const dump = await consumer.dump();
+			console.log(dump);
+			console.log(dump.rtpParameters.codecs);
+			console.log(dump.rtpParameters.encodings);
+			//await consumer.enableTraceEvent(["rtp"])
+			//consumer.on("trace", (event) => console.log(event));
+			// setInterval(async () => {
+			// 	const stats = await consumer?.getStats()
+			// 	console.log(stats)
+			// }, 5000)
 			videoConsumer = consumer;
 		}
 

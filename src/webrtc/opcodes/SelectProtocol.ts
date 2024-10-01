@@ -256,7 +256,7 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 			preferredPayloadType: data.codecs?.find((val) => val.name == "H264")
 				?.payload_type,
 		},
-		/* {
+		{
 			kind: "video",
 			mimeType: "video/rtx",
 			clockRate: 90000,
@@ -267,7 +267,7 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 			preferredPayloadType:
 				data.codecs?.find((val) => val.name == "H264")
 					?.rtx_payload_type ?? undefined,
-		}, */
+		},
 	];
 
 	this.client.supportedCodecs = supportedCodecs;

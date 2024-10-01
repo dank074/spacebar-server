@@ -81,8 +81,8 @@ export async function onIdentify(this: WebSocket, data: IdentifyPayload) {
 	const producerTransport = await router.router.createWebRtcTransport({
 		listenIps: [{ ip: process.env.LISTEN_IP || getLocalIp() }],
 		enableUdp: true,
-		maxIncomingBitrate: 1500000,
-		initialAvailableOutgoingBitrate: 1000000,
+		maxIncomingBitrate: 2500000,
+		initialAvailableOutgoingBitrate: 2500000,
 	} as any);
 
 	producerTransport.enableTraceEvent(["bwe", "probation"]);
@@ -158,7 +158,7 @@ export async function onIdentify(this: WebSocket, data: IdentifyPayload) {
 				// "xsalsa20_poly1305_suffix",
 				// "xsalsa20_poly1305",
 			],
-			experiments: [],
+			experiments: ["fixed_keyframe_interval"],
 		} as VoiceReadySchema,
 	};
 
