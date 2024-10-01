@@ -34,8 +34,8 @@ export async function onClose(this: WebSocket, code: number, reason: string) {
 		// if any consumer on this client has a producer id that is in our client, close it
 		client.consumers.forEach((consumer) => {
 			if (
-				client.producers.audio?.id === consumer.producerId ||
-				client.producers.video?.id === consumer.producerId
+				this.client?.producers.audio?.id === consumer.producerId ||
+				this.client?.producers.video?.id === consumer.producerId
 			) {
 				console.log("[WebRTC] closing consumer", consumer.id);
 				consumer.close();
