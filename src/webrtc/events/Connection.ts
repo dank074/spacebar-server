@@ -23,7 +23,6 @@ import WS from "ws";
 import { VoiceOPCodes } from "../util";
 import { onClose } from "./Close";
 import { onMessage } from "./Message";
-import { OnProtocolNegotiated } from "./ProtocolNegotiated";
 
 // TODO: check rate limit
 // TODO: specify rate limit in config
@@ -37,7 +36,6 @@ export async function Connection(
 	try {
 		socket.on("close", onClose.bind(socket));
 		socket.on("message", onMessage.bind(socket));
-		socket.on("protocol", OnProtocolNegotiated.bind(socket));
 		console.log("[WebRTC] new connection", request.url);
 
 		if (process.env.WS_LOGEVENTS) {

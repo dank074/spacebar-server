@@ -53,229 +53,247 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 
 	await Send(this, { op: VoiceOPCodes.MEDIA_SINK_WANTS, d: { any: 100 } });
 
-	if (d.audio_ssrc === 0 && d.video_ssrc === 0) return;
-
 	const router = getRouter(channel_id);
 	if (!router) {
 		console.error(`router not found`);
 		return;
 	}
 
-	const transport = this.client.transport!;
-
 	let audioProducer: MediaSoupTypes.Producer | undefined =
 		this.client.producers.audio;
-
-	let hasNewProducer = false;
-
-	if (d.audio_ssrc !== 0) {
-		if (!audioProducer) {
-			hasNewProducer = true;
-			audioProducer = await transport.produce({
-				kind: "audio",
-				rtpParameters: {
-					codecs: [
-						{
-							payloadType:
-								this.client.supportedCodecs.find(
-									(val) => val.kind === "audio",
-								)?.preferredPayloadType ?? 111,
-							mimeType: "audio/opus",
-							clockRate: 48000,
-							channels: 2,
-							rtcpFeedback: [
-								// { type: "nack" },
-								{ type: "transport-cc" },
-							],
-							parameters: {
-								minptime: 10,
-								usedtx: 1,
-								useinbandfec: 1,
-							},
-						},
-					],
-					encodings: [
-						{
-							ssrc: d.audio_ssrc,
-							maxBitrate: 64000,
-							codecPayloadType:
-								this.client.supportedCodecs.find(
-									(val) => val.kind === "audio",
-								)?.preferredPayloadType ?? 111,
-						},
-					],
-					headerExtensions: [
-						{
-							id: 1,
-							uri: "urn:ietf:params:rtp-hdrext:ssrc-audio-level",
-						},
-						{
-							id: 3,
-							uri: "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
-						},
-					],
-				},
-				paused: false,
-			});
-
-			//await audioProducer.enableTraceEvent(["rtp"]);
-
-			// audioProducer.on("score", (score) => {
-			// 	console.debug(`audio producer score:`, score);
-			// });
-
-			// audioProducer.on("trace", (trace) => {
-			// 	console.debug(`audio producer trace:`, trace);
-			// });
-
-			this.client.producers.audio = audioProducer;
-		}
-	}
 
 	let videoProducer: MediaSoupTypes.Producer | undefined =
 		this.client.producers.video;
 
-	const stream = d.streams?.find((element) => element !== undefined);
-
-	if (d.video_ssrc !== 0 && stream?.active) {
-		if (!videoProducer) {
-			hasNewProducer = true;
-			videoProducer = await transport.produce({
-				kind: "video",
-				rtpParameters: {
-					codecs: [
-						{
-							payloadType:
-								this.client.supportedCodecs.find(
-									(val) => val.mimeType === "video/H264",
-								)?.preferredPayloadType ?? 102,
-							mimeType: "video/H264",
-							clockRate: 90000,
-							parameters: {
-								"level-asymmetry-allowed": 1,
-								"packetization-mode": 1,
-								"profile-level-id": "42e01f",
-								"x-google-max-bitrate": 2500,
-							},
-							rtcpFeedback: [
-								{ type: "nack" },
-								{ type: "nack", parameter: "pli" },
-								{ type: "ccm", parameter: "fir" },
-								{ type: "goog-remb" },
-								{ type: "transport-cc" },
-							],
-						},
-						{
-							payloadType:
-								this.client.supportedCodecs.find(
-									(val) => val.mimeType === "video/rtx",
-								)?.preferredPayloadType ?? 103,
-							mimeType: "video/rtx",
-							clockRate: 90000,
-							parameters: {
-								apt:
-									this.client.supportedCodecs.find(
-										(val) => val.mimeType === "video/H264",
-									)?.preferredPayloadType ?? 102,
-							},
-						},
-					],
-					encodings: [
-						{
-							ssrc: stream.ssrc,
-							rtx: { ssrc: stream.rtx_ssrc },
-							scalabilityMode: "L1T1",
-							scaleResolutionDownBy: 1,
-							maxBitrate: stream.max_bitrate,
-							rid: stream.rid,
-							codecPayloadType:
-								this.client.supportedCodecs.find(
-									(val) => val.mimeType === "video/H264",
-								)?.preferredPayloadType ?? 102,
-							dtx: true,
-						},
-					],
-					headerExtensions: [
-						{
-							id:
-								this.client.headerExtensions.find(
-									(header) =>
-										header.uri ===
-										"http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
-								)?.preferredId || 2,
-							uri: "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
-						},
-						{
-							id:
-								this.client.headerExtensions.find(
-									(header) =>
-										header.uri ===
-										"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
-								)?.preferredId || 3,
-							uri: "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
-						},
-						{
-							id:
-								this.client.headerExtensions.find(
-									(header) =>
-										header.uri ===
-										"http://www.webrtc.org/experiments/rtp-hdrext/playout-delay",
-								)?.preferredId || 5,
-							uri: "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay",
-						},
-						{
-							id:
-								this.client.headerExtensions.find(
-									(header) =>
-										header.uri ===
-										"urn:3gpp:video-orientation",
-								)?.preferredId || 13,
-							uri: "urn:3gpp:video-orientation",
-						},
-						{
-							id:
-								this.client.headerExtensions.find(
-									(header) =>
-										header.uri ===
-										"urn:ietf:params:rtp-hdrext:toffset",
-								)?.preferredId || 14,
-							uri: "urn:ietf:params:rtp-hdrext:toffset",
-						},
-					],
-					rtcp: {
-						reducedSize: false,
-					},
-				},
-				paused: false,
-				keyFrameRequestDelay: 1000,
-			});
-
-			//await videoProducer.enableTraceEvent(["rtp"]);
-
-			videoProducer.on("score", (score) => {
-				console.debug(`video producer score:`, score);
-			});
-
-			this.client.producers.video = videoProducer;
+	if (d.audio_ssrc === 0 && audioProducer) {
+		// close any consumers associated with this producer
+		const clients = getClients(channel_id);
+		for (const client of clients) {
+			const consumers = client.consumers.filter(
+				(consumer) => consumer.producerId === audioProducer?.id,
+			);
+			consumers.forEach((consumer) => consumer.close());
 		}
+		// close the existing audio producer, if any
+		audioProducer?.close();
+		this.client.producers.audio = undefined;
+	}
+	if (d.video_ssrc === 0 && videoProducer) {
+		// close any consumers associated with this producer
+		const clients = getClients(channel_id);
+		for (const client of clients) {
+			const consumers = client.consumers.filter(
+				(consumer) => consumer.producerId === videoProducer?.id,
+			);
+			consumers.forEach((consumer) => consumer.close());
+		}
+		// close the existing video producer, if any
+		videoProducer?.close();
+		this.client.producers.video = undefined;
 	}
 
-	// loop the clients and add a consumer for each one
+	//if (d.audio_ssrc === 0 && d.video_ssrc === 0) return;
+
+	const transport = this.client.transport!;
+
+	// create a new audio producer
+	if (d.audio_ssrc !== 0 && !audioProducer) {
+		audioProducer = await transport.produce({
+			kind: "audio",
+			rtpParameters: {
+				codecs: [
+					{
+						payloadType:
+							this.client.supportedCodecs.find(
+								(val) => val.kind === "audio",
+							)?.preferredPayloadType ?? 111,
+						mimeType: "audio/opus",
+						clockRate: 48000,
+						channels: 2,
+						rtcpFeedback: [
+							// { type: "nack" },
+							{ type: "transport-cc" },
+						],
+						parameters: {
+							minptime: 10,
+							usedtx: 1,
+							useinbandfec: 1,
+						},
+					},
+				],
+				encodings: [
+					{
+						ssrc: d.audio_ssrc,
+						maxBitrate: 64000,
+						codecPayloadType:
+							this.client.supportedCodecs.find(
+								(val) => val.kind === "audio",
+							)?.preferredPayloadType ?? 111,
+					},
+				],
+				headerExtensions: [
+					{
+						id: 1,
+						uri: "urn:ietf:params:rtp-hdrext:ssrc-audio-level",
+					},
+					{
+						id: 3,
+						uri: "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
+					},
+				],
+			},
+			paused: false,
+		});
+
+		//await audioProducer.enableTraceEvent(["rtp"]);
+
+		// audioProducer.on("score", (score) => {
+		// 	console.debug(`audio producer score:`, score);
+		// });
+
+		// audioProducer.on("trace", (trace) => {
+		// 	console.debug(`audio producer trace:`, trace);
+		// });
+
+		this.client.producers.audio = audioProducer;
+	}
+
+	const stream = d.streams?.find((element) => element !== undefined);
+
+	// create a new video producer
+	if (d.video_ssrc !== 0 && stream?.active && !videoProducer) {
+		console.log("Starting new producer:", stream);
+		videoProducer = await transport.produce({
+			kind: "video",
+			rtpParameters: {
+				codecs: [
+					{
+						payloadType:
+							this.client.supportedCodecs.find(
+								(val) => val.mimeType === "video/H264",
+							)?.preferredPayloadType ?? 102,
+						mimeType: "video/H264",
+						clockRate: 90000,
+						parameters: {
+							"level-asymmetry-allowed": 1,
+							"packetization-mode": 1,
+							"profile-level-id": "42e01f",
+							"x-google-max-bitrate": 2500,
+						},
+						rtcpFeedback: [
+							{ type: "nack" },
+							{ type: "nack", parameter: "pli" },
+							{ type: "ccm", parameter: "fir" },
+							{ type: "goog-remb" },
+							{ type: "transport-cc" },
+						],
+					},
+					{
+						payloadType:
+							this.client.supportedCodecs.find(
+								(val) => val.mimeType === "video/rtx",
+							)?.preferredPayloadType ?? 103,
+						mimeType: "video/rtx",
+						clockRate: 90000,
+						parameters: {
+							apt:
+								this.client.supportedCodecs.find(
+									(val) => val.mimeType === "video/H264",
+								)?.preferredPayloadType ?? 102,
+						},
+					},
+				],
+				encodings: [
+					{
+						ssrc: stream.ssrc,
+						rtx: { ssrc: stream.rtx_ssrc },
+						scalabilityMode: "L1T1",
+						scaleResolutionDownBy: 1,
+						maxBitrate: stream.max_bitrate,
+						rid: stream.rid,
+						codecPayloadType:
+							this.client.supportedCodecs.find(
+								(val) => val.mimeType === "video/H264",
+							)?.preferredPayloadType ?? 102,
+						dtx: true,
+					},
+				],
+				headerExtensions: [
+					{
+						id:
+							this.client.headerExtensions.find(
+								(header) =>
+									header.uri ===
+									"http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
+							)?.preferredId || 2,
+						uri: "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
+					},
+					{
+						id:
+							this.client.headerExtensions.find(
+								(header) =>
+									header.uri ===
+									"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
+							)?.preferredId || 3,
+						uri: "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
+					},
+					{
+						id:
+							this.client.headerExtensions.find(
+								(header) =>
+									header.uri ===
+									"http://www.webrtc.org/experiments/rtp-hdrext/playout-delay",
+							)?.preferredId || 5,
+						uri: "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay",
+					},
+					{
+						id:
+							this.client.headerExtensions.find(
+								(header) =>
+									header.uri === "urn:3gpp:video-orientation",
+							)?.preferredId || 13,
+						uri: "urn:3gpp:video-orientation",
+					},
+					{
+						id:
+							this.client.headerExtensions.find(
+								(header) =>
+									header.uri ===
+									"urn:ietf:params:rtp-hdrext:toffset",
+							)?.preferredId || 14,
+						uri: "urn:ietf:params:rtp-hdrext:toffset",
+					},
+				],
+			},
+			paused: false,
+			keyFrameRequestDelay: 1000,
+		});
+
+		//await videoProducer.enableTraceEvent(["rtp"]);
+
+		videoProducer.on("score", (score) => {
+			console.debug(`video producer score:`, score);
+		});
+
+		this.client.producers.video = videoProducer;
+	}
+
+	// loop the clients and add a consumer for each one, if it doesnt exist
 	const clients = getClients(channel_id);
 	for (const client of clients) {
 		if (client.websocket.user_id === this.user_id) continue;
 		if (!client.transport) continue;
-		if (!hasNewProducer) continue;
+		//if (!hasNewProducer) continue;
 
 		let audioConsumer = client.consumers.find(
-			(x) => x.kind === "audio" && x.appData.user_id === this.user_id,
+			(x) => x.producerId === audioProducer?.id,
 		);
 		if (d.audio_ssrc !== 0 && !audioConsumer && audioProducer) {
 			//close the existing consumer if it exists
-			const consumers = client.consumers.filter(
-				(x) => x.kind === "audio" && x.appData.user_id === this.user_id,
-			);
-			await Promise.all(consumers.map((x) => x.close()));
+			// const consumers = client.consumers.filter(
+			// 	(x) => x.kind === "audio" && x.appData.user_id === this.user_id,
+			// );
+			// await Promise.all(consumers.map((x) => x.close()));
 			const consumer = await client.transport.consume({
 				producerId: audioProducer.id,
 				rtpCapabilities: {
@@ -305,7 +323,7 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 		}
 
 		let videoConsumer = client.consumers.find(
-			(x) => x.kind === "video" && x.appData.user_id === this.user_id,
+			(x) => x.producerId === videoProducer?.id,
 		);
 		if (
 			d.video_ssrc !== 0 &&
@@ -314,10 +332,10 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 			videoProducer
 		) {
 			// close the existing consumer if it exists
-			const a = client.consumers.filter(
-				(x) => x.kind === "video" && x.appData.user_id === this.user_id,
-			);
-			await Promise.all(a.map((x) => x.close()));
+			// const a = client.consumers.filter(
+			// 	(x) => x.kind === "video" && x.appData.user_id === this.user_id,
+			// );
+			// await Promise.all(a.map((x) => x.close()));
 			const consumer = await client.transport.consume({
 				producerId: videoProducer.id,
 				rtpCapabilities: {
@@ -329,17 +347,18 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 					user_id: this.user_id,
 				},
 				preferredLayers: {
-					spatialLayer: 1,
+					spatialLayer: 0,
 					temporalLayer: 0,
 				},
-				//mid: "2"
+				//mid: "2",
+				ignoreDtx: true,
 			});
 			client.consumers.push(consumer);
 			const dump = await consumer.dump();
 			console.log(dump);
 			console.log(dump.rtpParameters.codecs);
 			console.log(dump.rtpParameters.encodings);
-			//await consumer.enableTraceEvent(["rtp"])
+			//await consumer.enableTraceEvent(["keyframe"])
 			//consumer.on("trace", (event) => console.log(event));
 			// setInterval(async () => {
 			// 	const stats = await consumer?.getStats()
@@ -348,19 +367,26 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 			videoConsumer = consumer;
 		}
 
-		if (
-			(d.audio_ssrc !== 0 || (d.video_ssrc !== 0 && stream?.active)) &&
-			hasNewProducer
-		) {
-			Send(client.websocket, {
-				op: VoiceOPCodes.VIDEO,
-				d: {
-					user_id: this.user_id,
-					audio_ssrc:
-						audioConsumer?.rtpParameters?.encodings?.find(
-							(y) => y !== undefined,
-						)?.ssrc || 0,
-					video_ssrc:
+		await Send(client.websocket, {
+			op: VoiceOPCodes.VIDEO,
+			d: {
+				user_id: this.user_id,
+				audio_ssrc:
+					audioConsumer?.rtpParameters?.encodings?.find(
+						(y) => y !== undefined,
+					)?.ssrc || 0,
+				video_ssrc:
+					videoConsumer?.rtpParameters?.encodings?.find(
+						(y) => y !== undefined,
+					)?.ssrc || 0,
+				rtx_ssrc:
+					videoConsumer?.rtpParameters?.encodings?.find(
+						(y) => y !== undefined,
+					)?.rtx?.ssrc || 0,
+				streams: d.streams?.map((x) => ({
+					...x,
+					//active: true,
+					ssrc:
 						videoConsumer?.rtpParameters?.encodings?.find(
 							(y) => y !== undefined,
 						)?.ssrc || 0,
@@ -368,20 +394,8 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 						videoConsumer?.rtpParameters?.encodings?.find(
 							(y) => y !== undefined,
 						)?.rtx?.ssrc || 0,
-					streams: d.streams?.map((x) => ({
-						...x,
-						//active: true,
-						ssrc:
-							videoConsumer?.rtpParameters?.encodings?.find(
-								(y) => y !== undefined,
-							)?.ssrc || 0,
-						rtx_ssrc:
-							videoConsumer?.rtpParameters?.encodings?.find(
-								(y) => y !== undefined,
-							)?.rtx?.ssrc || 0,
-					})),
-				},
-			});
-		}
+				})),
+			},
+		});
 	}
 }

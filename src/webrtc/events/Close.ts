@@ -43,9 +43,10 @@ export async function onClose(this: WebSocket, code: number, reason: string) {
 		});
 	}
 
-	this.client?.transport?.close();
+	this.client?.consumers.forEach((consumer) => consumer.close());
 	this.client?.producers.audio?.close();
 	this.client?.producers.video?.close();
+	this.client?.transport?.close();
 
 	this.removeAllListeners();
 }
