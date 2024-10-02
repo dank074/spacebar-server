@@ -72,7 +72,11 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 			const consumers = client.consumers.filter(
 				(consumer) => consumer.producerId === audioProducer?.id,
 			);
-			consumers.forEach((consumer) => consumer.close());
+			consumers.forEach((consumer) => {
+				consumer.close();
+				const index = client.consumers.indexOf(consumer);
+				client.consumers.splice(index, 1);
+			});
 		}
 		// close the existing audio producer, if any
 		audioProducer?.close();
@@ -85,7 +89,11 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 			const consumers = client.consumers.filter(
 				(consumer) => consumer.producerId === videoProducer?.id,
 			);
-			consumers.forEach((consumer) => consumer.close());
+			consumers.forEach((consumer) => {
+				consumer.close();
+				const index = client.consumers.indexOf(consumer);
+				client.consumers.splice(index, 1);
+			});
 		}
 		// close the existing video producer, if any
 		videoProducer?.close();
