@@ -21,8 +21,7 @@ import { SelectProtocolSchema, validateSchema } from "@spacebar/util";
 import { types as MediaSoupTypes } from "mediasoup";
 import * as sdpTransform from "sdp-transform";
 import * as SemanticSDP from "semantic-sdp";
-import { getRouter, SUPPORTED_EXTENTIONS, VoiceOPCodes } from "../util";
-import { RtpCapabilities } from "mediasoup/node/lib/RtpParameters";
+import { getRouter, VoiceOPCodes } from "../util";
 
 // request:
 // {
@@ -233,8 +232,9 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 				usedtx: 1,
 				useinbandfec: 1,
 			},
-			preferredPayloadType: data.codecs?.find((val) => val.name == "opus")
-				?.payload_type,
+			preferredPayloadType:
+				data.codecs?.find((val) => val.name == "opus")?.payload_type ??
+				111,
 		},
 		{
 			kind: "video",
@@ -253,20 +253,22 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 				{ type: "goog-remb" },
 				{ type: "transport-cc" },
 			],
-			preferredPayloadType: data.codecs?.find((val) => val.name == "H264")
-				?.payload_type,
+			preferredPayloadType:
+				data.codecs?.find((val) => val.name == "H264")?.payload_type ??
+				102,
 		},
 		{
 			kind: "video",
 			mimeType: "video/rtx",
 			clockRate: 90000,
 			parameters: {
-				apt: data.codecs?.find((val) => val.name == "H264")
-					?.payload_type,
+				apt:
+					data.codecs?.find((val) => val.name == "H264")
+						?.payload_type ?? 102,
 			},
 			preferredPayloadType:
 				data.codecs?.find((val) => val.name == "H264")
-					?.rtx_payload_type ?? undefined,
+					?.rtx_payload_type ?? 103,
 		},
 	];
 

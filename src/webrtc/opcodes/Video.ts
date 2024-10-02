@@ -106,29 +106,25 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 
 	// create a new audio producer
 	if (d.audio_ssrc !== 0 && !audioProducer) {
+		// according to the client firefox only does {urn:ietf:params:rtp-hdrext:ssrc-audio-level} while chrome does both
+		const audioExtensionHeaders = this.client.headerExtensions.filter(
+			(header) =>
+				header.uri === "urn:ietf:params:rtp-hdrext:ssrc-audio-level" ||
+				header.uri ===
+					"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
+		);
+
 		audioProducer = await transport.produce({
 			kind: "audio",
 			rtpParameters: {
-				codecs: [
-					{
-						payloadType:
-							this.client.supportedCodecs.find(
-								(val) => val.kind === "audio",
-							)?.preferredPayloadType ?? 111,
-						mimeType: "audio/opus",
-						clockRate: 48000,
-						channels: 2,
-						rtcpFeedback: [
-							// { type: "nack" },
-							{ type: "transport-cc" },
-						],
-						parameters: {
-							minptime: 10,
-							usedtx: 1,
-							useinbandfec: 1,
-						},
-					},
-				],
+				codecs: this.client.supportedCodecs
+					.filter((codec) => codec.kind === "audio")
+					.map((codec) => {
+						return {
+							...codec,
+							payloadType: codec.preferredPayloadType!,
+						};
+					}),
 				encodings: [
 					{
 						ssrc: d.audio_ssrc,
@@ -139,16 +135,9 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 							)?.preferredPayloadType ?? 111,
 					},
 				],
-				headerExtensions: [
-					{
-						id: 1,
-						uri: "urn:ietf:params:rtp-hdrext:ssrc-audio-level",
-					},
-					{
-						id: 3,
-						uri: "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
-					},
-				],
+				headerExtensions: audioExtensionHeaders.map((header) => {
+					return { id: header.preferredId, uri: header.uri };
+				}),
 			},
 			paused: false,
 		});
@@ -171,46 +160,31 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 	// create a new video producer
 	if (d.video_ssrc !== 0 && stream?.active && !videoProducer) {
 		console.log("Starting new producer:", stream);
+
+		//taken from the client
+		const videoExtensionHeaders = this.client.headerExtensions.filter(
+			(e) =>
+				"urn:ietf:params:rtp-hdrext:toffset" === e.uri ||
+				"http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time" ===
+					e.uri ||
+				"urn:3gpp:video-orientation" === e.uri ||
+				"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01" ===
+					e.uri ||
+				"http://www.webrtc.org/experiments/rtp-hdrext/playout-delay" ===
+					e.uri,
+		);
+
 		videoProducer = await transport.produce({
 			kind: "video",
 			rtpParameters: {
-				codecs: [
-					{
-						payloadType:
-							this.client.supportedCodecs.find(
-								(val) => val.mimeType === "video/H264",
-							)?.preferredPayloadType ?? 102,
-						mimeType: "video/H264",
-						clockRate: 90000,
-						parameters: {
-							"level-asymmetry-allowed": 1,
-							"packetization-mode": 1,
-							"profile-level-id": "42e01f",
-							"x-google-max-bitrate": 2500,
-						},
-						rtcpFeedback: [
-							{ type: "nack" },
-							{ type: "nack", parameter: "pli" },
-							{ type: "ccm", parameter: "fir" },
-							{ type: "goog-remb" },
-							{ type: "transport-cc" },
-						],
-					},
-					{
-						payloadType:
-							this.client.supportedCodecs.find(
-								(val) => val.mimeType === "video/rtx",
-							)?.preferredPayloadType ?? 103,
-						mimeType: "video/rtx",
-						clockRate: 90000,
-						parameters: {
-							apt:
-								this.client.supportedCodecs.find(
-									(val) => val.mimeType === "video/H264",
-								)?.preferredPayloadType ?? 102,
-						},
-					},
-				],
+				codecs: this.client.supportedCodecs
+					.filter((codec) => codec.kind === "video")
+					.map((codec) => {
+						return {
+							...codec,
+							payloadType: codec.preferredPayloadType!,
+						};
+					}),
 				encodings: [
 					{
 						ssrc: stream.ssrc,
@@ -226,52 +200,9 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 						dtx: true,
 					},
 				],
-				headerExtensions: [
-					{
-						id:
-							this.client.headerExtensions.find(
-								(header) =>
-									header.uri ===
-									"http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
-							)?.preferredId || 2,
-						uri: "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
-					},
-					{
-						id:
-							this.client.headerExtensions.find(
-								(header) =>
-									header.uri ===
-									"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
-							)?.preferredId || 3,
-						uri: "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
-					},
-					{
-						id:
-							this.client.headerExtensions.find(
-								(header) =>
-									header.uri ===
-									"http://www.webrtc.org/experiments/rtp-hdrext/playout-delay",
-							)?.preferredId || 5,
-						uri: "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay",
-					},
-					{
-						id:
-							this.client.headerExtensions.find(
-								(header) =>
-									header.uri === "urn:3gpp:video-orientation",
-							)?.preferredId || 13,
-						uri: "urn:3gpp:video-orientation",
-					},
-					{
-						id:
-							this.client.headerExtensions.find(
-								(header) =>
-									header.uri ===
-									"urn:ietf:params:rtp-hdrext:toffset",
-							)?.preferredId || 14,
-						uri: "urn:ietf:params:rtp-hdrext:toffset",
-					},
-				],
+				headerExtensions: videoExtensionHeaders.map((header) => {
+					return { id: header.preferredId, uri: header.uri };
+				}),
 			},
 			paused: false,
 			keyFrameRequestDelay: 1000,
