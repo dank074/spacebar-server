@@ -107,12 +107,15 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 	// create a new audio producer
 	if (d.audio_ssrc !== 0 && !audioProducer) {
 		// according to the client firefox only does {urn:ietf:params:rtp-hdrext:ssrc-audio-level} while chrome does both
-		const audioExtensionHeaders = this.client.headerExtensions.filter(
-			(header) =>
-				header.uri === "urn:ietf:params:rtp-hdrext:ssrc-audio-level" ||
-				header.uri ===
-					"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
-		);
+		const audioExtensionHeaders = this.client.headerExtensions
+			.filter((e) => e.kind === "audio")
+			.filter(
+				(header) =>
+					header.uri ===
+						"urn:ietf:params:rtp-hdrext:ssrc-audio-level" ||
+					header.uri ===
+						"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
+			);
 
 		audioProducer = await transport.produce({
 			kind: "audio",
@@ -162,17 +165,19 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 		console.log("Starting new producer:", stream);
 
 		//taken from the client
-		const videoExtensionHeaders = this.client.headerExtensions.filter(
-			(e) =>
-				"urn:ietf:params:rtp-hdrext:toffset" === e.uri ||
-				"http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time" ===
-					e.uri ||
-				"urn:3gpp:video-orientation" === e.uri ||
-				"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01" ===
-					e.uri ||
-				"http://www.webrtc.org/experiments/rtp-hdrext/playout-delay" ===
-					e.uri,
-		);
+		const videoExtensionHeaders = this.client.headerExtensions
+			.filter((e) => e.kind === "video")
+			.filter(
+				(e) =>
+					"urn:ietf:params:rtp-hdrext:toffset" === e.uri ||
+					"http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time" ===
+						e.uri ||
+					"urn:3gpp:video-orientation" === e.uri ||
+					"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01" ===
+						e.uri ||
+					"http://www.webrtc.org/experiments/rtp-hdrext/playout-delay" ===
+						e.uri,
+			);
 
 		videoProducer = await transport.produce({
 			kind: "video",
