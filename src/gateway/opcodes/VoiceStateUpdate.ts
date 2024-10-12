@@ -39,7 +39,7 @@ import { check } from "./instanceOf";
 export async function onVoiceStateUpdate(this: WebSocket, data: Payload) {
 	check.call(this, VoiceStateUpdateSchema, data.d);
 	const body = data.d as VoiceStateUpdateSchema;
-	const isNew = body.channel_id === null && body.guild_id === null;
+	let isNew = body.channel_id === null && body.guild_id === null;
 	let isChanged = false;
 
 	let voiceState: VoiceState;
@@ -81,6 +81,13 @@ export async function onVoiceStateUpdate(this: WebSocket, data: Payload) {
 			mute: false,
 			suppress: false,
 		});
+		// if a user join voice channel, send event
+		await emitEvent({
+			event: "VOICE_STATE_UPDATE",
+			data: { ...voiceState, channel_id: voiceState.channel_id },
+			guild_id: voiceState.guild_id,
+		});
+		isNew = true;
 	}
 
 	// 'Fix' for this one voice state error. TODO: Find out why this is sent
