@@ -81,12 +81,6 @@ export async function onVoiceStateUpdate(this: WebSocket, data: Payload) {
 			mute: false,
 			suppress: false,
 		});
-		// if a user join voice channel, send event
-		await emitEvent({
-			event: "VOICE_STATE_UPDATE",
-			data: { ...voiceState, channel_id: voiceState.channel_id },
-			guild_id: voiceState.guild_id,
-		});
 		isNew = true;
 	}
 
