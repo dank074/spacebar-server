@@ -103,6 +103,7 @@ export async function onIdentify(this: WebSocket, data: IdentifyPayload) {
 	// 	);
 	// }, 10 * 1000);
 
+	/*
 	const offer = SemanticSDP.SDPInfo.expand(defaultSDP);
 	offer.setDTLS(
 		SemanticSDP.DTLSInfo.expand({
@@ -111,7 +112,7 @@ export async function onIdentify(this: WebSocket, data: IdentifyPayload) {
 			fingerprint: `${producerTransport.dtlsParameters.fingerprints[0].algorithm} ${producerTransport.dtlsParameters.fingerprints[0].value}`,
 		}),
 	);
-
+	*/
 	this.client = {
 		websocket: this,
 		out: {
@@ -122,7 +123,7 @@ export async function onIdentify(this: WebSocket, data: IdentifyPayload) {
 			video_ssrc: 0,
 			rtx_ssrc: 0,
 		},
-		sdpOffer: offer,
+		sdpOffer: SemanticSDP.SDPInfo.create({}),
 		channel_id: voiceState.channel_id,
 		transport: producerTransport,
 		producers: {},
