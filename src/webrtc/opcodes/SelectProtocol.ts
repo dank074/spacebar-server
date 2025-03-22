@@ -20,8 +20,8 @@ import { Payload, Send, WebSocket } from "@spacebar/gateway";
 import { SelectProtocolSchema, validateSchema } from "@spacebar/util";
 import { types as MediaSoupTypes } from "mediasoup";
 import * as sdpTransform from "sdp-transform";
-import * as SemanticSDP from "semantic-sdp";
-import { getRouter, VoiceOPCodes } from "../util";
+import { CodecInfo, DTLSInfo, MediaInfo, SDPInfo, Setup } from "semantic-sdp";
+import { getRouter, VoiceOPCodes, webrtcServer } from "../util";
 
 // request:
 // {
@@ -80,9 +80,10 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 	await Send(this, { op: VoiceOPCodes.MEDIA_SINK_WANTS, d: { any: 100 } });
 
 	// get the router for the voice channel
-	const router = getRouter(this.client.channel_id);
-	if (!router) {
-		console.error("Could not find router");
+	const server = webrtcServer;
+	const channel = server.channels().get(this.client.channel_id);
+	if (!channel) {
+		console.error("Could not find server");
 		this.close();
 		return;
 	}
@@ -121,52 +122,68 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 	// 	return;
 	// }
 
-	const offer = SemanticSDP.SDPInfo.parse("m=audio\n" + data.sdp);
-	const offer2 = sdpTransform.parse(data.sdp!);
-	this.client.sdpOffer = offer;
-	const compatibleHeaderExtensions =
-		router.router.rtpCapabilities.headerExtensions?.filter(
-			(x) => offer2.ext?.find((y) => y.uri === x.uri) !== undefined,
-		) || [];
-	const correctedExtensions = compatibleHeaderExtensions?.map((x) => {
-		const match = offer2.ext?.find((y) => y.uri === x.uri);
+	const rawOfferLines = data.sdp!.split("\n");
 
-		return {
-			...x,
-			preferredId: match?.value || x.preferredId,
-		};
-	});
+	// there's three of them
+	let indexToRemove = rawOfferLines?.findIndex((line) =>
+		line.startsWith("a=rtpmap:"),
+	);
+	if (indexToRemove > -1) rawOfferLines?.splice(indexToRemove!, 1);
+	indexToRemove = rawOfferLines?.findIndex((line) =>
+		line.startsWith("a=rtpmap:"),
+	);
+	if (indexToRemove > -1) rawOfferLines?.splice(indexToRemove!, 1);
+	indexToRemove = rawOfferLines?.findIndex((line) =>
+		line.startsWith("a=rtpmap:"),
+	);
+	if (indexToRemove > -1) rawOfferLines?.splice(indexToRemove!, 1);
 
-	this.client.headerExtensions = correctedExtensions;
+	const offerSdp = rawOfferLines?.join("\n");
+	const offer = SDPInfo.parse(offerSdp!);
 
-	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	//@ts-ignore
-	offer.getMedias()[0].type = "audio"; // this is bad, but answer.toString() fails otherwise
+	const fingerprintLine = rawOfferLines?.find((line) =>
+		line.startsWith("a=fingerprint:"),
+	);
+	console.log(fingerprintLine);
+	const dtlsInfo = new DTLSInfo(
+		Setup.byValue("ACTIVE"),
+		"sha-256",
+		fingerprintLine!.split(" ")[1],
+	);
+	offer.setDTLS(dtlsInfo);
+	console.log(offer.dtls);
 
-	const remoteDTLS = offer.getDTLS().plain();
+	const audioMedia = new MediaInfo("0", "audio");
+	audioMedia.id;
+	const audioCodec = new CodecInfo(
+		"opus",
+		data.codecs?.find((val) => val.name == "opus")?.payload_type ?? 111,
+	);
+	audioCodec.addParam("minptime", "10");
+	audioCodec.addParam("usedtx", "1");
+	audioCodec.addParam("useinbandfec", "1");
+	audioCodec.setChannels(2);
+	audioMedia.addCodec(audioCodec);
+	offer.addMedia(audioMedia);
 
-	await this.client.transport!.connect({
-		dtlsParameters: {
-			fingerprints: [
-				{
-					algorithm:
-						remoteDTLS.hash as MediaSoupTypes.FingerprintAlgorithm,
-					value: remoteDTLS.fingerprint,
-				},
-			],
-			role: "client",
-		},
-	});
+	const videoMedia = new MediaInfo("1", "video");
+	const videoCodec = new CodecInfo(
+		"H264",
+		data.codecs?.find((val) => val.name == "H264")?.payload_type ?? 102,
+	);
+	videoCodec.setRTX(
+		data.codecs?.find((val) => val.name == "H264")?.rtx_payload_type ?? 103,
+	);
+	videoCodec.addParam("level-asymmetry-allowed", "1");
+	videoCodec.addParam("packetization-mode", "1");
+	videoCodec.addParam("profile-level-id", "42e01f");
+	videoCodec.addParam("x-google-max-bitrate", "2500");
+	videoMedia.addCodec(videoCodec);
+	offer.addMedia(videoMedia);
 
-	console.debug("producer transport connected");
+	this.client.sdpOffer = offer.toString();
 
-	const iceParameters = this.client.transport!.iceParameters;
-	const iceCandidates = this.client.transport!.iceCandidates;
-	const iceCandidate = iceCandidates[0];
-	const dltsParamters = this.client.transport!.dtlsParameters;
-	const fingerprint = dltsParamters.fingerprints.find(
-		(x) => x.algorithm === "sha-256",
-	)!;
+	console.log(this.client.sdpOffer);
 
 	// const answer = offer.answer({
 	// 	dtls: SemanticSDP.DTLSInfo.expand({
@@ -206,17 +223,26 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 	// 	},
 	// });
 
+	const answer = await server.onOffer(this.client.sdpOffer);
+
+	const answerParsed = SDPInfo.parse(answer);
+
+	console.log(answer);
+	const iceCandidate = answerParsed.getCandidates()[0];
+	const iceParameters = answerParsed.getICE();
+	const fingerprint = answerParsed.getDTLS().fingerprint;
+
 	const sdpAnswer =
 		`m=audio ${iceCandidate.port} ICE/SDP\n` +
-		`a=fingerprint:sha-256 ${fingerprint.value}\n` +
-		`c=IN IP4 ${iceCandidate.ip}\n` +
+		`a=fingerprint:sha-256 ${fingerprint}\n` +
+		`c=IN IP4 ${iceCandidate.address}\n` +
 		`a=rtcp:${iceCandidate.port}\n` +
-		`a=ice-ufrag:${iceParameters.usernameFragment}\n` +
-		`a=ice-pwd:${iceParameters.password}\n` +
-		`a=fingerprint:sha-256 ${fingerprint.value}\n` +
-		`a=candidate:1 1 ${iceCandidate.protocol.toUpperCase()} ${
+		`a=ice-ufrag:${iceParameters.ufrag}\n` +
+		`a=ice-pwd:${iceParameters.pwd}\n` +
+		`a=fingerprint:sha-256 ${fingerprint}\n` +
+		`a=candidate:1 1 ${iceCandidate.transport.toUpperCase()} ${
 			iceCandidate.priority
-		} ${iceCandidate.ip} ${iceCandidate.port} typ ${iceCandidate.type}\n`;
+		} ${iceCandidate.address} ${iceCandidate.port} typ ${iceCandidate.type}\n`;
 
 	// const sdpAnswer = answer.toString();
 
@@ -272,8 +298,6 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 		},
 	];
 
-	this.client.supportedCodecs = supportedCodecs;
-
 	console.debug("onSelectProtocol sdp serialized\n", sdpAnswer);
 	await Send(this, {
 		op: VoiceOPCodes.SELECT_PROTOCOL_ACK,
@@ -285,10 +309,5 @@ export async function onSelectProtocol(this: WebSocket, payload: Payload) {
 			media_session_id: this.session_id,
 			sdp: sdpAnswer,
 		},
-	});
-
-	console.log({
-		codecs: this.client.supportedCodecs,
-		headerExtensions: this.client.headerExtensions,
 	});
 }

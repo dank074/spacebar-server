@@ -29,6 +29,7 @@ import {
 	getOrCreateRouter,
 	Stream,
 	VoiceOPCodes,
+	webrtcServer,
 } from "@spacebar/webrtc";
 import * as SemanticSDP from "semantic-sdp";
 import defaultSDP from "./sdp.json";
@@ -75,22 +76,20 @@ export async function onIdentify(this: WebSocket, data: IdentifyPayload) {
 	this.user_id = user_id;
 	this.session_id = session_id;
 
-	const router = await getOrCreateRouter(voiceState.channel_id);
-	console.debug(`onIdentify(router)`, router.router.id);
+	const server = webrtcServer;
 
-	const producerTransport = await router.router.createWebRtcTransport({
-		listenIps: [{ ip: process.env.LISTEN_IP || getLocalIp() }],
-		enableUdp: true,
-		maxIncomingBitrate: 2500000,
-		initialAvailableOutgoingBitrate: 2500000,
-	} as any);
+	this.client = {
+		websocket: this,
+		channel_id: voiceState.channel_id,
+		supportedCodecs: [],
+		supportedHeaders: [],
+		audio_ssrc: 0,
+		video_ssrc: 0,
+		rtx_ssrc: 0,
+		sdpOffer: "",
+	};
 
-	producerTransport.enableTraceEvent(["bwe", "probation"]);
-
-	producerTransport.on("trace", (trace) => {
-		console.log(`transport trace`, trace);
-	});
-
+	server.join(voiceState.channel_id, this.client);
 	// setInterval(async () => {
 	// 	if (producerTransport.closed) return;
 	// 	console.log(
@@ -113,43 +112,18 @@ export async function onIdentify(this: WebSocket, data: IdentifyPayload) {
 		}),
 	);
 	*/
-	this.client = {
-		websocket: this,
-		out: {
-			tracks: new Map(),
-		},
-		in: {
-			audio_ssrc: 0,
-			video_ssrc: 0,
-			rtx_ssrc: 0,
-		},
-		sdpOffer: SemanticSDP.SDPInfo.create({}),
-		channel_id: voiceState.channel_id,
-		transport: producerTransport,
-		producers: {},
-		consumers: [],
-		headerExtensions: [],
-		supportedCodecs: [],
-	};
-
-	const clients = getClients(voiceState.channel_id)!;
-	clients.add(this.client);
-
-	this.on("close", () => {
-		clients.delete(this.client!);
-	});
 
 	const d = {
 		op: VoiceOPCodes.READY,
 		d: {
-			ssrc: this.client.in.video_ssrc, // this is just a base, first stream ssrc will be +1 with rtx +2
+			ssrc: this.client.video_ssrc, // this is just a base, first stream ssrc will be +1 with rtx +2
 			streams: streams?.map((x) => ({
 				...x,
-				ssrc: ++this.client!.in.video_ssrc, // first stream should be 2
-				rtx_ssrc: ++this.client!.in.video_ssrc, // first stream should be 3
+				ssrc: ++this.client!.video_ssrc, // first stream should be 2
+				rtx_ssrc: ++this.client!.video_ssrc, // first stream should be 3
 			})),
-			ip: producerTransport.iceCandidates[0].ip,
-			port: producerTransport.iceCandidates[0].port,
+			ip: "127.0.0.1",
+			port: 9009,
 			modes: [
 				// "aead_aes256_gcm_rtpsize",
 				// "aead_aes256_gcm",

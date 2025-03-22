@@ -17,4 +17,6 @@
 */
 
 export * from "./Constants";
+export * from "./WebRtcClient";
+export * from "./SignalingDelegate";
 export * from "./MediaServer";

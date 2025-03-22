@@ -17,7 +17,7 @@
 */
 
 import { Intents, ListenEventOpts, Permissions } from "@spacebar/util";
-import { Client } from "@spacebar/webrtc";
+import { Client, WebRtcClient } from "@spacebar/webrtc";
 import { Deflate, Inflate } from "fast-zlib";
 import WS from "ws";
 import { Capabilities } from "./Capabilities";
@@ -42,6 +42,6 @@ export interface WebSocket extends WS {
 	member_events: Record<string, () => unknown>;
 	listen_options: ListenEventOpts;
 	capabilities?: Capabilities;
-	client?: Client;
+	client?: WebRtcClient;
 	large_threshold: number;
 }

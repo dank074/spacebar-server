@@ -53,6 +53,7 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 
 	await Send(this, { op: VoiceOPCodes.MEDIA_SINK_WANTS, d: { any: 100 } });
 
+	/*
 	const router = getRouter(channel_id);
 	if (!router) {
 		console.error(`router not found`);
@@ -342,4 +343,5 @@ export async function onVideo(this: WebSocket, payload: Payload) {
 			},
 		});
 	}
+		*/
 }

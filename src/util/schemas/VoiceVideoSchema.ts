@@ -25,7 +25,7 @@ export interface VoiceVideoSchema {
 		type: "video" | "audio";
 		rid: string;
 		ssrc: number;
-		active: boolean;
+		active?: boolean;
 		quality: number;
 		rtx_ssrc: number;
 		max_bitrate: number;

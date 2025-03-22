@@ -21,7 +21,7 @@ import dotenv from "dotenv";
 import http from "http";
 import ws from "ws";
 import { Connection } from "./events/Connection";
-import { createWorkers } from "./util";
+import { createWorkers, webrtcServer } from "./util";
 dotenv.config();
 
 export class Server {
@@ -70,7 +70,8 @@ export class Server {
 		await initDatabase();
 		await Config.init();
 		await initEvent();
-		await createWorkers();
+		//await createWorkers();
+		await webrtcServer.start();
 
 		if (!this.server.listening) {
 			this.server.listen(this.port);

@@ -25,6 +25,7 @@ export async function onClose(this: WebSocket, code: number, reason: string) {
 
 	if (this.session_id) await Session.delete({ session_id: this.session_id });
 
+	/*
 	// we need to find all consumers on all clients that have a producer in our client
 	const clients = getClients(this.client?.channel_id!);
 
@@ -48,5 +49,6 @@ export async function onClose(this: WebSocket, code: number, reason: string) {
 	this.client?.producers.video?.close();
 	this.client?.transport?.close();
 
+	*/
 	this.removeAllListeners();
 }

@@ -20,6 +20,7 @@ import * as mediasoup from "mediasoup";
 import { types as MediaSoupTypes } from "mediasoup";
 import os from "os";
 import * as SemanticSDP from "semantic-sdp";
+import { WeriftSingalingDelegate } from "./WeriftSignalingDelegate";
 
 const ifaces = os.networkInterfaces();
 
@@ -52,20 +53,11 @@ export const workers: MediaSoupTypes.Worker<AppData>[] = [];
 export const routers = new Map<string, RouterType>();
 export let nextWorkerIdx = 0;
 
+export const webrtcServer = new WeriftSingalingDelegate();
+
 export interface Client {
 	transport?: MediaSoupTypes.WebRtcTransport;
 	websocket: WebSocket;
-	out: {
-		stream?: Stream;
-		tracks: Map<
-			string,
-			{
-				audio_ssrc: number;
-				video_ssrc: number;
-				rtx_ssrc: number;
-			}
-		>;
-	};
 	in: {
 		stream?: Stream;
 		audio_ssrc: number;
@@ -196,14 +188,6 @@ export async function createWorkers() {
 
 export interface AppData extends MediaSoupTypes.AppData {
 	webRtcServer?: MediaSoupTypes.WebRtcServer;
-}
-
-export interface Codec {
-	name: "opus" | "VP8" | "VP9" | "H264";
-	type: "audio" | "video";
-	priority: number;
-	payload_type: number;
-	rtx_payload_type?: number | null;
 }
 
 export const MEDIA_CODECS: MediaSoupTypes.RtpCodecCapability[] = [
